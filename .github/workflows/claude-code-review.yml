@@ -1,0 +1,73 @@
+name: Claude Code Review
+
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: Model the reviewer runs on.
+        type: string
+        default: claude-opus-5
+      fixed_point:
+        description: >-
+          Ref to review against. Defaults to the PR's base branch, which is what
+          you want unless a repo reviews against something else.
+        type: string
+        default: ""
+      runs_on:
+        description: Runner label.
+        type: string
+        default: ubuntu-latest
+      show_full_output:
+        description: >-
+          Show the transcript in the job log. On by default: the action hides it
+          otherwise, which makes a denied or missing tool call invisible.
+        type: boolean
+        default: true
+    secrets:
+      claude_code_oauth_token:
+        required: true
+
+jobs:
+  claude-review:
+    runs-on: ${{ inputs.runs_on }}
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # 0 so the three-dot diff in the review skill can reach the merge-base
+          fetch-depth: 0
+
+      - name: Run Claude Code Review
+        id: claude-review
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          claude_code_oauth_token: ${{ secrets.claude_code_oauth_token }}
+          # /review resolves to .claude/skills/review in the calling repo. The
+          # fixed point is passed explicitly: without an argument the skill asks
+          # "review against what?" and, with nobody to answer, the job exits
+          # after one turn having posted nothing.
+          prompt: "/review ${{ inputs.fixed_point != '' && inputs.fixed_point || github.event.pull_request.base.ref }}"
+          show_full_output: ${{ inputs.show_full_output }}
+          # Skill is required: the review skill sets disable-model-invocation, so
+          # /review can only be entered through an explicit Skill call.
+          # Agent is the subagent tool it spawns; Task is the legacy name.
+          #
+          # TaskOutput is what makes the review actually post. Agent spawns are
+          # asynchronous: they return an agentId and report back on a later
+          # turn, and a headless CI run has no later turn. Without a blocking
+          # tool the agent can only end its turn saying "waiting for the
+          # sub-agents", the SDK sees a finished turn, and the job exits green
+          # having posted nothing. TaskOutput(block=true) is the blocking wait;
+          # SendMessage and ListAgents are the fallbacks if an id goes missing.
+          # (run_in_background:false is NOT an alternative — it is ignored.)
+          claude_args: '--allowedTools "Skill,Agent,Task,TaskOutput,SendMessage,ListAgents,Bash,Read,Write,Glob,Grep,WebSearch,WebFetch" --model ${{ inputs.model }}'
+          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
+          # or https://code.claude.com/docs/en/cli-reference for available options
