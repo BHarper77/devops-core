@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-    # This repo also hosts reusable workflows for the other repos. Editing one
-    # is not an infra change, and must not apply Terraform to prod.
     paths-ignore:
       - .github/workflows/claude-code-review.yml
       - .github/workflows/README.md

@@ -48,8 +48,3 @@ The workflow's `--allowedTools` list has to cover what the skill's steps actuall
 call — `TaskOutput` above all, which is what makes the review post rather than
 exit green having posted nothing. The skill lives in dotfiles and the workflow
 lives here, so changing either half means checking the other.
-
-### Deploys
-
-`main.yml` applies Terraform on push to `main`, and ignores this directory — a
-workflow edit is not an infra change.
