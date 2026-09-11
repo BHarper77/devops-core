@@ -4,7 +4,10 @@ on:
   push:
     branches:
       - main
-    
+    paths-ignore:
+      - .github/workflows/claude-code-review.yml
+      - .github/workflows/README.md
+
 jobs:
   deploy:
     runs-on: ubuntu-latest

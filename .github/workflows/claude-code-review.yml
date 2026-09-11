@@ -1,0 +1,55 @@
+name: Claude Code Review
+
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: Model the reviewer runs on.
+        type: string
+        default: claude-opus-5
+      fixed_point:
+        description: >-
+          Ref to review against. Defaults to the PR's base branch, which is what
+          you want unless a repo reviews against something else.
+        type: string
+        default: ""
+      runs_on:
+        description: Runner label.
+        type: string
+        default: ubuntu-latest
+      show_full_output:
+        description: >-
+          Show the transcript in the job log. On by default: the action hides it
+          otherwise, which makes a denied or missing tool call invisible.
+        type: boolean
+        default: true
+    secrets:
+      claude_code_oauth_token:
+        required: true
+
+jobs:
+  claude-review:
+    runs-on: ${{ inputs.runs_on }}
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          # 0 so the three-dot diff in the review skill can reach the merge-base
+          fetch-depth: 0
+
+      - name: Run Claude Code Review
+        id: claude-review
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          claude_code_oauth_token: ${{ secrets.claude_code_oauth_token }}
+          prompt: "/review ${{ inputs.fixed_point != '' && inputs.fixed_point || github.event.pull_request.base.ref }}"
+          show_full_output: ${{ inputs.show_full_output }}
+          claude_args: '--allowedTools "Skill,Agent,Task,TaskOutput,SendMessage,ListAgents,Bash,Read,Write,Glob,Grep,WebSearch,WebFetch" --model ${{ inputs.model }}'
